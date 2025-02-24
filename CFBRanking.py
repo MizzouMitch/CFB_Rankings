@@ -11,6 +11,10 @@
 import numpy as np
 # For retrieving sheet
 import pygsheets as ps
+# For checking paths
+import os
+# For reading csv files
+import pandas as pd
 
 
 # Class for each game played during the season
@@ -37,6 +41,34 @@ class Team:
     def __init__(self, name, schedule):
         self.schedule = schedule # List of games played (Game objects)
         self.name = name # Name of team
+
+
+# A weight multiplier system to be used for ranking teams
+class Weights:
+    def __init__(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21):
+        self.wu3 = wu3 # # win under 3
+        self.w3t6 = w3t6 # win 3-6
+        self.w7t13 = w7t13 # win 7-13
+        self.w14t20 = w14t20 # win 14-20
+        self.wo21 = wo21 # win 21+
+        self.lu3 = lu3 # loss under 3
+        self.l3t6 = l3t6 # loss 3-6
+        self.l7t13 = l7t13 # loss 7 to 13
+        self.l14t20 = l14t20 # loss 14 to 20
+        self.lo21 = lo21 # loss 21+
+
+    # Changes a weight system to new values
+    def change_weights(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21):
+            self.wu3 = wu3
+            self.w3t6 = w3t6
+            self.w7t13 = w7t13
+            self.w14t20 = w14t20
+            self.wo21 = wo21
+            self.lu3 = lu3
+            self.l3t6 = l3t6
+            self.l7t13 = l7t13
+            self.l14t20 = l14t20
+            self.lo21 = lo21
 
 
 # Imports a spreadsheet given the file path, Google sheets key, and sheet name
@@ -145,7 +177,7 @@ def list_of_teams(arr):
     # For each winning team, if the team isn't already in the list of every
     # team and the game was at a neutral site or a home game, add to list
     for  item in list0:
-        if item not in out_list and (list2[list_counter] == ('H' or "N")):
+        if item not in out_list and (list2[list_counter] == ("H" or "N")):
             out_list.append(item)
         # increment counter
         list_counter += 1
@@ -156,10 +188,13 @@ def list_of_teams(arr):
     # For each losing team, if the team isn't already in the list of every
     # team and the game was at a neutral site or an away game, add to list
     for  item in list3:
-        if item not in out_list and (list2[list_counter] == ('A' or "N")):
+        if item not in out_list and (list2[list_counter] == ("A" or "N")):
             out_list.append(item)
         # increment counter
         list_counter += 1
+
+    # Sorts the list of teams by school name
+    out_list.sort()
 
     # Returns the list of every team
     return out_list
@@ -198,22 +233,46 @@ def create_team_arr(list1, arr):
     # Return the array of team objects
     return out_arr
 
+
+# Gets data from a csv file, creating one with the Google sheet if necessary
+def get_array(file_imp, key_imp, sheet_imp, csv_file):
+    # If the csv file does not already exist
+    if not os.path.exists(csv_file):
+        # Import and parse the data from the Google sheet
+        df = import_sheet(file_imp, key_imp, sheet_imp)
+        data_arr = parse_data(df)
+        # Create a csv file for the future
+        np.savetxt(csv_file, data_arr, fmt="%s", delimiter = ",")
+
+    # Uses the csv file to get the array
+    return get_array_csv(csv_file)
+
+
+# Gets array data from a csv file
+def get_array_csv(csv_file):
+    # Import and parse the data from the csv file
+    df = pd.read_csv(csv_file)
+    data_arr = parse_data(df)
+
+    # Creates a list of teams
+    data_list = list_of_teams(data_arr)
+
+    # Creates an array of team objects
+    team_arr = create_team_arr(data_list, data_arr)
+
+    # Returns the array of team objects
+    return team_arr
+
     
 # Main program
 def main():
+
     # 2024 schedule array
     file24 = r"C:/Users/digle/Documents/CFBRanking/cfb-scores-2024-a1167a301572.json"
     key24 = "1eLsWt7h0MQLnylBDi_QYnqUgcKCoY78mLvXKkt7vnXM"
     sheet24 = "Games"
-    df24 = import_sheet(file24, key24, sheet24)
-    arr24 = parse_data(df24)
-
-    # 2024 list of teams
-    list24 = list_of_teams(arr24)
-    list24.sort()
-
-    # 2024 array of team objects
-    team_arr24 = create_team_arr(list24, arr24)
+    csv24 = "array24.csv"
+    team_arr24 = get_array(file24, key24, sheet24, csv24)
 
 
     # List of team objects test
