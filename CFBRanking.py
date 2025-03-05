@@ -15,32 +15,38 @@ import pygsheets as ps
 import os
 # For reading csv files
 import pandas as pd
+# To ignore intentional warnings
+import warnings
+# Ignore intentional warning regarding empty dataframe cells
+warnings.filterwarnings("ignore", "At least one column name in the data frame is an empty string")
 
 
-# Class for each game played during the season
+# A game between two teams
 class Game:
-    def __init__(self, game_line):
-        # Variable setting
-        self.winner = game_line[0] # Winning team
-        self.loser = game_line[3] # Losing team
-        self.winner_pts = game_line[1] # Winning team pts
-        self.loser_pts = game_line[4] # Losing team pts
-        self.winnerLoc = game_line[2] # location relative to winner
+    def __init__(self, winner, loser, winner_loc, winner_pts = 0, loser_pts = 0):
+        self.winner = winner # Winning team
+        self.loser = loser # Losing team
+        self.winner_loc = winner_loc # Location of game relative to the winner
+        self.winner_pts = winner_pts # Winning team's score
+        self.loser_pts = loser_pts # Losing team's score
 
-        # If no score, sets pts to 0 instead of empty string
-        if self.winner_pts == '':
-            self.winner_pts = 0
-        if self.loser_pts == '':
-            self.loser_pts = 0
-            
-        self.margin = self.winner_pts - self.loser_pts # Margin of victory for winner
+        self.margin = self.winner_pts - self.loser_pts  # Margin of victory for winner
+
+        # Set mutual references with Team objects
+        self.winner.add_game(self)
+        self.loser.add_game(self)
 
 
-# Class for a team and their schedule and data
+# A team in a season
 class Team:
-    def __init__(self, name, schedule):
-        self.schedule = schedule # List of games played (Game objects)
-        self.name = name # Name of team
+    def __init__(self, team_name):
+        self.team_name = team_name # Team name
+        self.schedule = [] # Team's schedule
+
+    # Add games participated in to the team's schedule with mutual references to Game objects
+    def add_game(self, game_add):
+        if game_add not in self.schedule:
+            self.schedule.append(game_add)
 
 
 # A weight multiplier system to be used for ranking teams
@@ -69,6 +75,61 @@ class Weights:
             self.l7t13 = l7t13
             self.l14t20 = l14t20
             self.lo21 = lo21
+
+
+# Generate a season of Game and Team objects
+def create_season(file, key, sheet, csv, team_arr, game_arr):
+    game_data = get_array(file, key, sheet, csv) # Array of all game data for the season
+    num_games = len(game_data) # Number of games in the season
+    team_data = list_of_teams(game_data) # Array of teams in the season
+
+    fcs = Team("fcs") # For any FCS team
+
+    team_dict = {} # Dictionary for team name strings to team objects
+
+    # For each team in the season add the team to the array of teams and
+    # the dictionary of teams
+    for team in team_data:
+        new_team = Team(team)
+        team_arr.append(new_team)
+        team_dict[team] = new_team
+
+    game_ct = 0 # Counter for number of games
+
+    # Up until every game in the season or the Army/Navy game add each game to the game array
+    while game_ct < num_games:
+        # String for winner and loser names
+        winner_str = game_data[game_ct][0]
+        loser_str = game_data[game_ct][3]
+        # If winner in dictionary, get team's object, if not, get fcs object
+        if winner_str in team_dict:
+            game_winner = team_dict[winner_str]
+        else:
+            game_winner = fcs
+
+        # If loser in dictionary, get team's object, if not, get fcs object
+        if loser_str in team_dict:
+            game_loser = team_dict[loser_str]
+        else:
+            game_loser = fcs
+
+        game_loc = game_data[game_ct][2] # The location of the game relative to the winner
+        w_score = int(game_data[game_ct][1]) # The score of the winner
+        l_score = int(game_data[game_ct][4]) # The score of the loser
+
+        # Create the new Game object to be added using the data from the array of games
+        new_game = Game(game_winner, game_loser, game_loc, w_score, l_score)
+        # Add the new Game object to the array of games
+        game_arr.append(new_game)
+
+        # If the game just added was the Army/Navy game, end the season
+        if (winner_str == "Army" and loser_str == "Navy") or (winner_str == "Navy" and loser_str == "Army"):
+            break
+
+        game_ct += 1 # Increment the counter
+
+    # No return as outputs passed as ref
+    return
 
 
 # Imports a spreadsheet given the file path, Google sheets key, and sheet name
@@ -200,40 +261,6 @@ def list_of_teams(arr):
     return out_list
 
 
-# Creates a team object
-def create_team(arr, team):
-    # Array for schedule of games
-    schedule_arr = []
-
-    # If a game involved the team being created, add the game to schedule_arr
-    for i in range(len(arr)):
-        if arr[i, 0] == team:
-            game_add = Game(arr[i])
-            schedule_arr.append(game_add)
-        if arr[i, 3] == team:
-            game_add = Game(arr[i])
-            schedule_arr.append(game_add)
-
-    # Create a team object using the team's schedule
-    team1 = Team(team, schedule_arr)
-
-    # Return the team object
-    return team1
-
-
-# Creates a list of team objects for every team in list
-def create_team_arr(list1, arr):
-    # List of team objects
-    out_arr = []
-    
-    # For every team in the list, create a team object using createTeam
-    for item in list1:
-        out_arr.append(create_team(arr, item))
-
-    # Return the array of team objects
-    return out_arr
-
-
 # Gets data from a csv file, creating one with the Google sheet if necessary
 def get_array(file_imp, key_imp, sheet_imp, csv_file):
     # If the csv file does not already exist
@@ -251,36 +278,36 @@ def get_array(file_imp, key_imp, sheet_imp, csv_file):
 # Gets array data from a csv file
 def get_array_csv(csv_file):
     # Import and parse the data from the csv file
-    df = pd.read_csv(csv_file)
+    df = pd.read_csv(csv_file, header=None)
     data_arr = parse_data(df)
 
-    # Creates a list of teams
-    data_list = list_of_teams(data_arr)
-
-    # Creates an array of team objects
-    team_arr = create_team_arr(data_list, data_arr)
-
-    # Returns the array of team objects
-    return team_arr
+    # Returns the array of data
+    return data_arr
 
     
 # Main program
 def main():
-
-    # 2024 schedule array
+    # 2024 schedule array data
     file24 = r"C:/Users/digle/Documents/CFBRanking/cfb-scores-2024-a1167a301572.json"
     key24 = "1eLsWt7h0MQLnylBDi_QYnqUgcKCoY78mLvXKkt7vnXM"
     sheet24 = "Games"
     csv24 = "array24.csv"
-    team_arr24 = get_array(file24, key24, sheet24, csv24)
+    # 2024 season test with a season
+    game_arr24 = []
+    team_arr24 = []
+    create_season(file24, key24, sheet24, csv24, team_arr24, game_arr24)
 
+    # Team print test
+    # ct = 1
+    # for team in team_arr24:
+    #     print(ct)
+    #     print(team.team_name)
+    #     ct += 1
 
-    # List of team objects test
-    for item in team_arr24:
-        print(item.name)
-        for item2 in item.schedule:
-            print('Winner: ' + item2.winner + ' - Loser: ' + item2.loser)
-        print('\n')
-
+    # Game print test
+    # ct = 1
+    # for game in game_arr24:
+    #     print(f"{game.winner.team_name}: {game.winner_pts} - {game.loser.team_name}: {game.loser_pts} - Margin: {game.margin} - Loc: {game.winner_loc}")
+    #     ct += 1
 
 main()
