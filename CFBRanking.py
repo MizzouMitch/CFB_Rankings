@@ -6,7 +6,6 @@
 # Schedules can be imported using:
 # https://docs.google.com/spreadsheets/d/1eLsWt7h0MQLnylBDi_QYnqUgcKCoY78mLvXKkt7vnXM/edit?usp=sharing
 
-
 # For formatting a dataframe into an array
 import numpy as np
 # For retrieving sheet
@@ -42,6 +41,8 @@ class Team:
     def __init__(self, team_name):
         self.team_name = team_name # Team name
         self.schedule = [] # Team's schedule
+        self.rank_pts = 1 # Team's rank pts
+        self.rank = 1 # Team's rank
 
     # Add games participated in to the team's schedule with mutual references to Game objects
     def add_game(self, game_add):
@@ -51,8 +52,8 @@ class Team:
 
 # A weight multiplier system to be used for ranking teams
 class Weights:
-    def __init__(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21):
-        self.wu3 = wu3 # # win under 3
+    def __init__(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21, loch, loca, locn):
+        self.wu3 = wu3 # win under 3
         self.w3t6 = w3t6 # win 3-6
         self.w7t13 = w7t13 # win 7-13
         self.w14t20 = w14t20 # win 14-20
@@ -63,8 +64,12 @@ class Weights:
         self.l14t20 = l14t20 # loss 14 to 20
         self.lo21 = lo21 # loss 21+
 
+        self.loch = loch # Game at home
+        self.loca = loca # Game on road
+        self.locn = locn # Game at neutral site
+
     # Changes a weight system to new values
-    def change_weights(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21):
+    def change_weights(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21, loch, loca, locn):
             self.wu3 = wu3
             self.w3t6 = w3t6
             self.w7t13 = w7t13
@@ -75,6 +80,10 @@ class Weights:
             self.l7t13 = l7t13
             self.l14t20 = l14t20
             self.lo21 = lo21
+
+            self.loch = loch
+            self.loca = loca
+            self.locn = locn
 
 
 # Generate a season of Game and Team objects
@@ -284,6 +293,109 @@ def get_array_csv(csv_file):
     # Returns the array of data
     return data_arr
 
+
+# Ranks a team given a Team object and a weight system
+def rank_team(team, weight_system):
+
+    # Calculates the rank pts for a single game
+    def calc_game_rank_pts():
+
+        # Gets the game's location relative to the team being ranked
+        def get_loc_rel_team():
+            # If the team won, the location is the winner location
+            if won:
+                ret_loc = game.winner_loc
+            # If the team lost, the location is the inversion of the winner location
+            else:
+                if game.winner_loc == "A":
+                    ret_loc = "H"
+                elif game.winner_loc == "H":
+                    ret_loc = "A"
+                # Neutral site is same for both winner and loser
+                else:
+                    ret_loc = "N"
+
+            # Return the location relative to the team being ranked
+            return ret_loc
+
+
+        # Gets the weight for the game based on the location
+        def get_loc_weight():
+            # Assign the weight based on the location
+            if loc == "H":
+                ret_weight = weight_system.loch
+            elif loc == "A":
+                ret_weight = weight_system.loca
+            else:
+                ret_weight = weight_system.locn
+
+            # Return the weight for the location
+            return ret_weight
+
+
+        loc = get_loc_rel_team() # The location relative to the team being ranked
+        loc_weight = get_loc_weight() # The location weight
+
+        # Calculate the rank pts for the game
+        ret_rank_pts = opp.rank * margin_weight * loc_weight
+
+        # Return the rank pts for the game
+        return ret_rank_pts
+
+
+    new_rank_pts = 0 # The new rank pts for the team
+
+    # Add the rank pts for each game to the new rank pts
+    for game in team.schedule:
+
+        margin = game.margin # The margin for the game
+
+        # Checks to see if the team won or lost the game
+        if team.team_name == game.winner.team_name:
+            won = True
+        else:
+            won = False
+
+        # If the team won, the opponent is the loser
+        opp = game.loser
+
+        # If the team lost, invert the margin and make the opponent the winner
+        if not won:
+            margin = -margin
+            opp = game.winner
+
+        # Gets the margin weight from the weight system using the margin
+        match margin:
+            case n if n >= 21:
+                margin_weight = weight_system.wo21
+            case n if n >= 14:
+                margin_weight = weight_system.w14t20
+            case n if n >= 7:
+                margin_weight = weight_system.w7t13
+            case n if n >= 3:
+                margin_weight = weight_system.w3t6
+            case n if n >= 1:
+                margin_weight = weight_system.wu3
+            case n if n <= -21:
+                margin_weight = weight_system.lo21
+            case n if n <= -14:
+                margin_weight = weight_system.l14t20
+            case n if n <= -7:
+                margin_weight = weight_system.l7t13
+            case n if n <= -3:
+                margin_weight = weight_system.l3t6
+            case n if n <= -2:
+                margin_weight = weight_system.lu3
+
+        # Adds the rank pts for the game to the total for the new rank pts
+        new_rank_pts += calc_game_rank_pts()
+
+    # Updates the team's rank pts to the new rank pts
+    team.rank_pts = new_rank_pts
+
+    # No return as output passed as ref
+    return
+
     
 # Main program
 def main():
@@ -296,6 +408,19 @@ def main():
     game_arr24 = []
     team_arr24 = []
     create_season(file24, key24, sheet24, csv24, team_arr24, game_arr24)
+
+
+    # rank_team Test
+    weights1 = Weights(3.5, 3.8, 4.1, 4.6, 5, 1.7, 1.4, 0.9, 0.5, 0.1, 1, 2, 1.5)
+
+    for team in team_arr24:
+        rank_team(team, weights1)
+
+    team_arr24.sort(key = lambda x: x.rank_pts, reverse = True)
+
+    for team in team_arr24:
+        print(f"{team.team_name}: {team.rank_pts}")
+
 
     # Team print test
     # ct = 1
