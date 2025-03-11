@@ -14,10 +14,14 @@ import pygsheets as ps
 import os
 # For reading csv files
 import pandas as pd
-# To ignore intentional warnings
+# For deepcopy
+import copy
+# To ignore intentional warning regarding empty dataframe cells
 import warnings
-# Ignore intentional warning regarding empty dataframe cells
 warnings.filterwarnings("ignore", "At least one column name in the data frame is an empty string")
+# For deepcopy recursion depth error
+import sys
+sys.setrecursionlimit(10000)
 
 
 # A game between two teams
@@ -295,7 +299,7 @@ def get_array_csv(csv_file):
 
 
 # Ranks a team given a Team object and a weight system
-def rank_team(team, weight_system):
+def rank_team(team_static, team_update, weight_system):
 
     # Calculates the rank pts for a single game
     def calc_game_rank_pts():
@@ -337,7 +341,7 @@ def rank_team(team, weight_system):
         loc_weight = get_loc_weight() # The location weight
 
         # Calculate the rank pts for the game
-        ret_rank_pts = opp.rank * margin_weight * loc_weight
+        ret_rank_pts = opp.rank_pts * margin_weight * loc_weight
 
         # Return the rank pts for the game
         return ret_rank_pts
@@ -346,12 +350,12 @@ def rank_team(team, weight_system):
     new_rank_pts = 0 # The new rank pts for the team
 
     # Add the rank pts for each game to the new rank pts
-    for game in team.schedule:
+    for game in team_static.schedule:
 
         margin = game.margin # The margin for the game
 
         # Checks to see if the team won or lost the game
-        if team.team_name == game.winner.team_name:
+        if team_static.team_name == game.winner.team_name:
             won = True
         else:
             won = False
@@ -384,14 +388,63 @@ def rank_team(team, weight_system):
                 margin_weight = weight_system.l7t13
             case n if n <= -3:
                 margin_weight = weight_system.l3t6
-            case n if n <= -2:
+            case n if n <= -1:
                 margin_weight = weight_system.lu3
 
         # Adds the rank pts for the game to the total for the new rank pts
         new_rank_pts += calc_game_rank_pts()
 
     # Updates the team's rank pts to the new rank pts
-    team.rank_pts = new_rank_pts
+    team_update.rank_pts = new_rank_pts
+
+    # No return as output passed as ref
+    return
+
+
+# Ranks teams by rank pts
+def rank_teams_pts(teams, weight_system):
+    num_teams = len(teams)  # The number of teams
+    finished = False # True if rankings are finalized
+    # it_ct = 0 # For testing number of iterations
+    teams_new = teams
+    # While rankings aren't finalized
+    while not finished:
+        # it_ct += 1
+        teams_old = copy.deepcopy(teams_new) # The old ranks to be used in the calculations
+        teams_new = teams # The new ranks which will be updated
+
+        # Rank each team using teams_old and updating teams_new
+        team_ct = 0 # Current team counter
+        while team_ct < num_teams:
+            rank_team(teams_old[team_ct], teams_new[team_ct], weight_system)
+            team_ct += 1
+
+        # Sort the teams by rank pts
+        teams_new.sort(key=lambda x: x.rank_pts, reverse=True)
+
+        # Rerank the teams once sorted
+        team_rank = 1 # Current team's rank
+        for team in teams_new:
+            team.rank = team_rank
+            team_rank += 1
+
+        # if it_ct == 50:
+        #     finished = True
+
+        # Check if the rankings are finalized by seeing if they match the previous rankings
+        team_check_finished = False
+        team_check_ct = 0 # Counter to stop when every team matches
+        while not team_check_finished:
+            if teams_new[team_check_ct].team_name == teams_old[team_check_ct].team_name:
+                team_check_ct += 1
+                # If every team matches, set both finished variables to true
+                if team_check_ct == num_teams:
+                    finished = True
+                    team_check_finished = True
+            # If the rankings aren't matching, finish the team check and move on to next rankings
+            else:
+                team_check_finished = True
+
 
     # No return as output passed as ref
     return
@@ -410,16 +463,13 @@ def main():
     create_season(file24, key24, sheet24, csv24, team_arr24, game_arr24)
 
 
-    # rank_team Test
+    # rank_team_pts Test
     weights1 = Weights(3.5, 3.8, 4.1, 4.6, 5, 1.7, 1.4, 0.9, 0.5, 0.1, 1, 2, 1.5)
 
-    for team in team_arr24:
-        rank_team(team, weights1)
-
-    team_arr24.sort(key = lambda x: x.rank_pts, reverse = True)
+    rank_teams_pts(team_arr24, weights1)
 
     for team in team_arr24:
-        print(f"{team.team_name}: {team.rank_pts}")
+        print(f"{team.team_name}: {team.rank} : {team.rank_pts}")
 
 
     # Team print test
