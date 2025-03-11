@@ -46,7 +46,7 @@ class Team:
         self.team_name = team_name # Team name
         self.schedule = [] # Team's schedule
         self.rank_pts = 1 # Team's rank pts
-        self.rank = 1 # Team's rank
+        self.rank = 135 # Team's rank
 
     # Add games participated in to the team's schedule with mutual references to Game objects
     def add_game(self, game_add):
@@ -96,7 +96,7 @@ def create_season(file, key, sheet, csv, team_arr, game_arr):
     num_games = len(game_data) # Number of games in the season
     team_data = list_of_teams(game_data) # Array of teams in the season
 
-    fcs = Team("fcs") # For any FCS team
+    fcs = Team("fcs")  # For any FCS team
 
     team_dict = {} # Dictionary for team name strings to team objects
 
@@ -162,6 +162,7 @@ def import_sheet(in_file, in_key, in_sheet):
 
 
 # Parses data from a schedule array to get into a 5 column format and returns the formatted array
+# noinspection PyUnresolvedReferences
 def parse_data(in_arr):
 
     # Gets rid of preset rankings in team rows and the trash rows
@@ -226,6 +227,7 @@ def parse_data(in_arr):
         # Cleans up the possible formatting in the location cell
         if format_cell == "":
             format_cell = format_cell + "H"
+        # noinspection PyUnresolvedReferences
         format_cell = format_cell.replace("@", "A")
         out_arr[cell_count][2] = format_cell
         # Increment cell counter
@@ -299,7 +301,7 @@ def get_array_csv(csv_file):
 
 
 # Ranks a team given a Team object and a weight system
-def rank_team(team_static, team_update, weight_system):
+def rank_team(team_static, team_update, weight_system, num_teams):
 
     # Calculates the rank pts for a single game
     def calc_game_rank_pts():
@@ -339,9 +341,10 @@ def rank_team(team_static, team_update, weight_system):
 
         loc = get_loc_rel_team() # The location relative to the team being ranked
         loc_weight = get_loc_weight() # The location weight
+        rank_weight = num_teams + 2 - opp.rank # The rank weight
 
         # Calculate the rank pts for the game
-        ret_rank_pts = opp.rank_pts * margin_weight * loc_weight
+        ret_rank_pts = rank_weight * margin_weight * loc_weight
 
         # Return the rank pts for the game
         return ret_rank_pts
@@ -394,8 +397,8 @@ def rank_team(team_static, team_update, weight_system):
         # Adds the rank pts for the game to the total for the new rank pts
         new_rank_pts += calc_game_rank_pts()
 
-    # Updates the team's rank pts to the new rank pts
-    team_update.rank_pts = new_rank_pts
+    # Updates the team's rank pts to the new rank pts divided by the number of games played
+    team_update.rank_pts = int(new_rank_pts / len(team_static.schedule))
 
     # No return as output passed as ref
     return
@@ -410,13 +413,14 @@ def rank_teams_pts(teams, weight_system):
     # While rankings aren't finalized
     while not finished:
         # it_ct += 1
+        # print(it_ct)
         teams_old = copy.deepcopy(teams_new) # The old ranks to be used in the calculations
         teams_new = teams # The new ranks which will be updated
 
         # Rank each team using teams_old and updating teams_new
         team_ct = 0 # Current team counter
         while team_ct < num_teams:
-            rank_team(teams_old[team_ct], teams_new[team_ct], weight_system)
+            rank_team(teams_old[team_ct], teams_new[team_ct], weight_system, num_teams)
             team_ct += 1
 
         # Sort the teams by rank pts
@@ -425,10 +429,15 @@ def rank_teams_pts(teams, weight_system):
         # Rerank the teams once sorted
         team_rank = 1 # Current team's rank
         for team in teams_new:
-            team.rank = team_rank
+            prev_team = teams_new[team_rank - 2] # The previous team's rank
+            # If the previous team has the same rank pts as the current team, they both get same rank
+            if team.rank_pts == prev_team.rank_pts:
+                team.rank = prev_team.rank
+            else:
+                team.rank = team_rank
             team_rank += 1
 
-        # if it_ct == 50:
+        # if it_ct == 100:
         #     finished = True
 
         # Check if the rankings are finalized by seeing if they match the previous rankings
@@ -443,8 +452,8 @@ def rank_teams_pts(teams, weight_system):
                     team_check_finished = True
             # If the rankings aren't matching, finish the team check and move on to next rankings
             else:
+                # print(f"Failed at check: {team_check_ct}")
                 team_check_finished = True
-
 
     # No return as output passed as ref
     return
@@ -466,7 +475,9 @@ def main():
     # rank_team_pts Test
     weights1 = Weights(3.5, 3.8, 4.1, 4.6, 5, 1.7, 1.4, 0.9, 0.5, 0.1, 1, 2, 1.5)
 
-    rank_teams_pts(team_arr24, weights1)
+    weights2 = Weights(2.0, 2.2, 2.4, 2.6, 2.8, 0.5, 0.25, 0.1, 0.05, 0.01, 1, 1.5, 1.25)
+
+    rank_teams_pts(team_arr24, weights2)
 
     for team in team_arr24:
         print(f"{team.team_name}: {team.rank} : {team.rank_pts}")
