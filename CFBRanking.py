@@ -1,7 +1,7 @@
 # Author: Mitchell John Boone
 # V 1.1
 # Reranks college football teams for any college football season by opponent
-#   rank and win/loss margin using weighting system.
+#   rank and win/loss margin using a weight system.
 # Schedules can be found at https://www.sports-reference.com/cfb/years/
 # Schedules can be imported using:
 # https://docs.google.com/spreadsheets/d/1eLsWt7h0MQLnylBDi_QYnqUgcKCoY78mLvXKkt7vnXM/edit?usp=sharing
@@ -24,6 +24,9 @@ import sys
 sys.setrecursionlimit(10000)
 # For formatting columns
 from tabulate import tabulate
+# For exact calculations
+from decimal import *
+import math
 
 
 # A game between two teams
@@ -58,38 +61,49 @@ class Team:
 
 # A weight multiplier system to be used for ranking teams
 class Weights:
-    def __init__(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21, loch, loca, locn):
-        self.wu3 = wu3 # win under 3
-        self.w3t6 = w3t6 # win 3-6
-        self.w7t13 = w7t13 # win 7-13
-        self.w14t20 = w14t20 # win 14-20
-        self.wo21 = wo21 # win 21+
-        self.lu3 = lu3 # loss under 3
-        self.l3t6 = l3t6 # loss 3-6
-        self.l7t13 = l7t13 # loss 7 to 13
-        self.l14t20 = l14t20 # loss 14 to 20
-        self.lo21 = lo21 # loss 21+
+    def __init__(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21, loch, loca, locn, exp_mult = 1.0):
+        self.wu3 = Decimal(wu3) + Weights.unique_num(1) # win under 3
+        self.w3t6 = Decimal(w3t6) + Weights.unique_num(2) # win 3-6
+        self.w7t13 = Decimal(w7t13) + Weights.unique_num(3) # win 7-13
+        self.w14t20 = Decimal(w14t20) + Weights.unique_num(4) # win 14-20
+        self.wo21 = Decimal(wo21) + Weights.unique_num(5) # win 21+
+        self.lu3 = Decimal(lu3) + Weights.unique_num(6) # loss under 3
+        self.l3t6 = Decimal(l3t6) + Weights.unique_num(7) # loss 3-6
+        self.l7t13 = Decimal(l7t13) + Weights.unique_num(8) # loss 7 to 13
+        self.l14t20 = Decimal(l14t20) + Weights.unique_num(9) # loss 14 to 20
+        self.lo21 = Decimal(lo21) + Weights.unique_num(10) # loss 21+
 
-        self.loch = loch # Game at home
-        self.loca = loca # Game on road
-        self.locn = locn # Game at neutral site
+        self.loch = Decimal(loch) + Weights.unique_num(11) # Game at home
+        self.loca = Decimal(loca) + Weights.unique_num(12) # Game on road
+        self.locn = Decimal(locn) + Weights.unique_num(13) # Game at neutral site
+
+        self.exp_mult = Decimal(exp_mult) # Power rank to be raised to for exp weight increase for team weights
+
+
+    # Generates a unique number to avoid infinite loops given the number of 0s
+    @staticmethod
+    def unique_num(zeros):
+        # Calculate pi to 100 decimal places rounded down
+        context = Context(prec = 100, rounding = ROUND_DOWN)
+        pi = context.create_decimal_from_float(math.pi)
+        dec = Decimal(0.001) # Default decimal length
+        dec_tenth = Decimal(0.1) # Decimal multiplier
+        i = 0
+        # For each zero to be added, move the decimal place over one
+        while i < zeros:
+            dec *= dec_tenth
+            i += 1
+
+        # Calculate the unique number
+        ret_num = pi * dec
+
+        # Return the unique number
+        return ret_num
+
 
     # Changes a weight system to new values
-    def change_weights(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21, loch, loca, locn):
-            self.wu3 = wu3
-            self.w3t6 = w3t6
-            self.w7t13 = w7t13
-            self.w14t20 = w14t20
-            self.wo21 = wo21
-            self.lu3 = lu3
-            self.l3t6 = l3t6
-            self.l7t13 = l7t13
-            self.l14t20 = l14t20
-            self.lo21 = lo21
-
-            self.loch = loch
-            self.loca = loca
-            self.locn = locn
+    def change_weights(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21, loch, loca, locn, exp_mult = 1.0):
+        self.__init__(wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21, loch, loca, locn, exp_mult)
 
 
 # Generate a season of Game and Team objects
@@ -343,7 +357,7 @@ def rank_team(team_static, team_update, weight_system, num_teams):
 
         loc = get_loc_rel_team() # The location relative to the team being ranked
         loc_weight = get_loc_weight() # The location weight
-        rank_weight = num_teams + 2 - opp.rank # The rank weight
+        rank_weight = (num_teams + 2 - opp.rank) ** weight_system.exp_mult # The rank weight
 
         # Calculate the rank pts for the game
         ret_rank_pts = rank_weight * margin_weight * loc_weight
@@ -410,11 +424,11 @@ def rank_team(team_static, team_update, weight_system, num_teams):
 def rank_teams_pts(teams, weight_system):
     num_teams = len(teams)  # The number of teams
     finished = False # True if rankings are finalized
-    # it_ct = 0 # For testing number of iterations
+    it_ct = 0 # To break if no squeeze answer
     teams_new = teams
     # While rankings aren't finalized
     while not finished:
-        # it_ct += 1
+        it_ct += 1
         # print(it_ct)
         teams_old = copy.deepcopy(teams_new) # The old ranks to be used in the calculations
         teams_new = teams # The new ranks which will be updated
@@ -439,8 +453,10 @@ def rank_teams_pts(teams, weight_system):
                 team.rank = team_rank
             team_rank += 1
 
-        # if it_ct == 100:
-        #     finished = True
+        # Finish ranking if no squeeze after 250 iterations
+        if it_ct == 250:
+            print("\nNo answer could be squeezed completely - Ranks could differ slightly per sequence in iteration loop")
+            finished = True
 
         # Check if the rankings are finalized by seeing if they match the previous rankings
         team_check_finished = False
@@ -452,10 +468,14 @@ def rank_teams_pts(teams, weight_system):
                 if team_check_ct == num_teams:
                     finished = True
                     team_check_finished = True
+                    print(f"\nIterations for solution: {it_ct}")
             # If the rankings aren't matching, finish the team check and move on to next rankings
             else:
                 # print(f"Failed at check: {team_check_ct}")
                 team_check_finished = True
+
+
+        # print_rankings(teams_new, 2024) # For testing
 
     # No return as output passed as ref
     return
@@ -468,7 +488,7 @@ def print_rankings(team_arr, year):
     # Populate array for print formatting
     for team in team_arr:
         ranking_arr.append([team.rank, team.team_name, team.rank_pts])
-    print(f"{year} Rankings:\n") # Print the year of the rankings
+    print(f"\n{year} Rankings:\n") # Print the year of the rankings
     print(tabulate(ranking_arr, headers = headers)) # Print the formatted rankings
 
     
@@ -488,9 +508,11 @@ def main():
     # rank_team_pts Test
     weights1 = Weights(3.5, 3.8, 4.1, 4.6, 5, 1.7, 1.4, 0.9, 0.5, 0.1, 1, 2, 1.5)
 
-    weights2 = Weights(2.0, 2.2, 2.4, 2.6, 2.8, 0.5, 0.25, 0.1, 0.05, 0.01, 1, 1.5, 1.25)
+    weights1.change_weights(2.0, 2.2, 2.4, 2.6, 2.8, 0.5, 0.25, 0.1, 0.05, 0.01, 1, 1.5, 1.25, 1.5)
 
-    rank_teams_pts(team_arr24, weights2)
+    # weights1.change_weights(2.0, 2.2, 2.4, 2.5, 2.6, 1.0, 0.8, 0.3, 0.20, 0.10, 1, 1.5, 1.25)
+
+    rank_teams_pts(team_arr24, weights1)
 
     print_rankings(team_arr24, 2024)
 
