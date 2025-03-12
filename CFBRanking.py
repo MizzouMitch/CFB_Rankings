@@ -22,6 +22,8 @@ warnings.filterwarnings("ignore", "At least one column name in the data frame is
 # For deepcopy recursion depth error
 import sys
 sys.setrecursionlimit(10000)
+# For formatting columns
+from tabulate import tabulate
 
 
 # A game between two teams
@@ -458,6 +460,17 @@ def rank_teams_pts(teams, weight_system):
     # No return as output passed as ref
     return
 
+
+# Prints the rankings
+def print_rankings(team_arr, year):
+    ranking_arr = [] # Array for print formatting
+    headers = ["Rank", "Team name", "Pts"] # Headers for print formatting
+    # Populate array for print formatting
+    for team in team_arr:
+        ranking_arr.append([team.rank, team.team_name, team.rank_pts])
+    print(f"{year} Rankings:\n") # Print the year of the rankings
+    print(tabulate(ranking_arr, headers = headers)) # Print the formatted rankings
+
     
 # Main program
 def main():
@@ -479,8 +492,7 @@ def main():
 
     rank_teams_pts(team_arr24, weights2)
 
-    for team in team_arr24:
-        print(f"{team.team_name}: {team.rank} : {team.rank_pts}")
+    print_rankings(team_arr24, 2024)
 
 
     # Team print test
