@@ -62,43 +62,22 @@ class Team:
 # A weight multiplier system to be used for ranking teams
 class Weights:
     def __init__(self, wu3, w3t6, w7t13, w14t20, wo21, lu3, l3t6, l7t13, l14t20, lo21, loch, loca, locn, exp_mult = 1.0):
-        self.wu3 = Decimal(wu3) + Weights.unique_num(1) # win under 3
-        self.w3t6 = Decimal(w3t6) + Weights.unique_num(2) # win 3-6
-        self.w7t13 = Decimal(w7t13) + Weights.unique_num(3) # win 7-13
-        self.w14t20 = Decimal(w14t20) + Weights.unique_num(4) # win 14-20
-        self.wo21 = Decimal(wo21) + Weights.unique_num(5) # win 21+
-        self.lu3 = Decimal(lu3) + Weights.unique_num(6) # loss under 3
-        self.l3t6 = Decimal(l3t6) + Weights.unique_num(7) # loss 3-6
-        self.l7t13 = Decimal(l7t13) + Weights.unique_num(8) # loss 7 to 13
-        self.l14t20 = Decimal(l14t20) + Weights.unique_num(9) # loss 14 to 20
-        self.lo21 = Decimal(lo21) + Weights.unique_num(10) # loss 21+
+        self.wu3 = Decimal(wu3) # win under 3
+        self.w3t6 = Decimal(w3t6) # win 3-6
+        self.w7t13 = Decimal(w7t13) # win 7-13
+        self.w14t20 = Decimal(w14t20) # win 14-20
+        self.wo21 = Decimal(wo21) # win 21+
+        self.lu3 = Decimal(lu3) # loss under 3
+        self.l3t6 = Decimal(l3t6) # loss 3-6
+        self.l7t13 = Decimal(l7t13) # loss 7 to 13
+        self.l14t20 = Decimal(l14t20) # loss 14 to 20
+        self.lo21 = Decimal(lo21) # loss 21+
 
-        self.loch = Decimal(loch) + Weights.unique_num(11) # Game at home
-        self.loca = Decimal(loca) + Weights.unique_num(12) # Game on road
-        self.locn = Decimal(locn) + Weights.unique_num(13) # Game at neutral site
+        self.loch = Decimal(loch) # Game at home
+        self.loca = Decimal(loca) # Game on road
+        self.locn = Decimal(locn) # Game at neutral site
 
         self.exp_mult = Decimal(exp_mult) # Power rank to be raised to for exp weight increase for team weights
-
-
-    # Generates a unique number to avoid infinite loops given the number of 0s
-    @staticmethod
-    def unique_num(zeros):
-        # Calculate pi to 100 decimal places rounded down
-        context = Context(prec = 100, rounding = ROUND_DOWN)
-        pi = context.create_decimal_from_float(math.pi)
-        dec = Decimal(0.001) # Default decimal length
-        dec_tenth = Decimal(0.1) # Decimal multiplier
-        i = 0
-        # For each zero to be added, move the decimal place over one
-        while i < zeros:
-            dec *= dec_tenth
-            i += 1
-
-        # Calculate the unique number
-        ret_num = pi * dec
-
-        # Return the unique number
-        return ret_num
 
 
     # Changes a weight system to new values
